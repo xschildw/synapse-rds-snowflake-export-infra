@@ -10,9 +10,19 @@ One stack, `SourceReplicationStack` (`lib/source-replication-stack.ts`):
 2. **`RdsExportCopyLambda`** runs when RDS reports the export complete (`RDS-EVENT-0161`). It copies each Parquet part to
    `<replicationPrefix>/<TABLE_NAME>/<stackInstance>/<YYYY-MM-DD>/part-*.parquet`
    in the destination bucket, encrypted with the destination KMS key.
-3. Failed copies go to an SQS dead-letter queue after 2 retries. CloudWatch alarms on copy errors, DLQ depth, and copy duration notify the Synapse global-resources SNS topic.
+3. Failed copies go to an SQS dead-letter queue after 2 retries.
 
 The export and copy pipeline is created only when `destBucketArn`, `destAccountId`, and `destDataKeyArn` are all set. Without them, the stack deploys only the source bucket, KMS key, and export role.
+
+## Monitoring
+
+These notify the Synapse global-resources SNS topic:
+
+- CloudWatch alarm on `RdsExportLambda` errors (the export could not be started)
+- EventBridge rule on RDS export failed/canceled events (`RDS-EVENT-0159`/`0160`), published straight to the topic
+- CloudWatch alarms on `RdsExportCopyLambda` errors, DLQ depth, and copy duration (>12 min, nearing the 15-min Lambda limit)
+
+A DLQ message-age alarm (>7 days, half the 14-day retention) has no actions. It only records alarm state until DLQ redrive exists.
 
 ## Context parameters
 

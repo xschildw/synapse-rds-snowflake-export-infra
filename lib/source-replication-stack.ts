@@ -296,6 +296,18 @@ export class SourceReplicationStack extends cdk.Stack {
       });
       dlqAlarm.addAlarmAction(notify);
 
+      // Flags DLQ messages left unhandled for half the retention period, before they expire.
+      // Intentionally no actions: until DLQ redrive exists (PLFM-10123) it would re-notify on the
+      // same failure already reported by RdsExportCopyDlqAlarm. Alarm state is visible in CloudWatch.
+      new cloudwatch.Alarm(this, 'RdsExportCopyDlqAgeAlarm', {
+        metric: copyDlq.metricApproximateAgeOfOldestMessage({ statistic: 'Maximum' }),
+        threshold: cdk.Duration.days(7).toSeconds(),
+        evaluationPeriods: 1,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+        alarmDescription: 'RdsExportCopyDlq oldest message is older than 7 days (retention is 14); redrive or purge before it expires.',
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      });
+
       new cdk.CfnOutput(this, 'RdsExportCopyLambdaRoleArn', {
         value: copyLambda.role!.roleArn,
         description: 'Add this principal to the destination bucket policy and destination KMS key policy.',

@@ -173,8 +173,8 @@ describe('Copy Lambda + event rule (dev, with destination)', () => {
     });
   });
 
-  test('export errors, copy duration, copy errors and DLQ alarms all notify the imported SNS topic', () => {
-    template.resourceCountIs('AWS::CloudWatch::Alarm', 4);
+  test('export errors, copy duration, copy errors and DLQ depth alarms all notify the imported SNS topic', () => {
+    template.resourceCountIs('AWS::CloudWatch::Alarm', 5);
     const importedTopic = {
       'Fn::ImportValue': 'us-east-1-synapse-dev-global-resources-NotificationTopic',
     };
@@ -184,6 +184,21 @@ describe('Copy Lambda + event rule (dev, with destination)', () => {
         AlarmActions: [importedTopic],
       });
     }
+  });
+
+  test('DLQ age alarm fires after 7 days and has no actions', () => {
+    const dlqLogicalId = Object.keys(template.findResources('AWS::SQS::Queue'))[0];
+    template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+      MetricName: 'ApproximateAgeOfOldestMessage',
+      Namespace: 'AWS/SQS',
+      Dimensions: [{ Name: 'QueueName', Value: { 'Fn::GetAtt': [dlqLogicalId, 'QueueName'] } }],
+      Statistic: 'Maximum',
+      Threshold: 7 * 24 * 60 * 60,
+      ComparisonOperator: 'GreaterThanThreshold',
+      AlarmActions: Match.absent(),
+      OKActions: Match.absent(),
+      InsufficientDataActions: Match.absent(),
+    });
   });
 
   test('export Lambda has an errors alarm', () => {
